@@ -10,8 +10,16 @@ int main(void) {
         fprintf(stderr, "connect failed\n");
     }
 
-    if (mqtt_pub(broker, "tests/test1", "msg1", true, true, QOS1) < 0) {
-        fprintf(stderr, "pub failed\n");
+    if (mqtt_pub(broker, "tests/test1", "msg1", true, false, QOS0) < 0) {
+        fprintf(stderr, "QOS0 publish failed\n");
+    }
+
+    if (mqtt_pub(broker, "tests/test2", "msg2", true, false, QOS1) < 0) {
+        fprintf(stderr, "QOS1 publish failed\n");
+    }
+
+    if (mqtt_pub(broker, "tests/test2", "msg3", true, false, QOS2) < 0) {
+        fprintf(stderr, "QOS2 publish failed\n");
     }
 
     if (mqtt_disconnect(broker) < 0) {

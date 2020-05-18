@@ -162,7 +162,7 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
     /*
      * Check for correct CONNACK (connection acknowledge) packet
      */
-    char recv_buf[4];
+    char recv_buf[4], recv_ctrl_packet, recv_remaining_len;
     if ((recv_len = recv(broker->socket_fd, recv_buf, sizeof(recv_buf), 0)) < 0) {
         if (VERBOSE)
             fprintf(stderr, "Unable to receive from mqtt broker\n");
@@ -170,11 +170,11 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
         return NULL;
     }
 
-    char recv_ctrl_packet = (recv_buf[0] >> 4) & 0xf;
-    char recv_remaining_len = recv_buf[1];
+    recv_ctrl_packet = (recv_buf[0] >> 4) & 0xf;
+    recv_remaining_len = recv_buf[1];
     if (recv_ctrl_packet != CONNACK || recv_remaining_len != 2) {
         if (VERBOSE)
-            fprintf(stderr, "Received packet is invalid\n");
+            fprintf(stderr, "Received packet is invalid CONNACK\n");
         free(broker);
         return NULL;
     }
@@ -245,26 +245,66 @@ int mqtt_pub(mqtt_broker *broker,
         return -1;
     }
 
-    int i = 0;
-    while(i < pub_msg_len) {
-        fprintf(stderr, "%c\n", mqtt_pub_msg[i]);
-        ++i;
-    }
+    char buf[4], recv_ctrl_packet, recv_remaining_len;
 
-    // A PUBACK Packet is the response to a PUBLISH Packet with QoS level 1
+    // For QoS level 1, must receive a PUBACK (pubish acknowledge)
     if (qos == QOS1) {
-        char recv_buf[4];
-        if ((recv_len = recv(broker->socket_fd, recv_buf, sizeof(recv_buf), 0)) < 0) {
+        if ((recv_len = recv(broker->socket_fd, buf, sizeof(buf), 0)) < 0) {
             if (VERBOSE)
                 fprintf(stderr, "Unable to receive from mqtt broker\n");
             return -1;
         }
 
-        char recv_ctrl_packet = (recv_buf[0] >> 4) & 0xf;
-        char recv_remaining_len = recv_buf[1];
+        recv_ctrl_packet = (buf[0] >> 4) & 0xf;
+        recv_remaining_len = buf[1];
         if (recv_ctrl_packet != PUBACK || recv_remaining_len != 2) {
             if (VERBOSE)
-                fprintf(stderr, "Received packet is invalid\n");
+                fprintf(stderr, "Received packet is invalid PUBACK\n");
+            return -1;
+        }
+    }
+    // For QoS level 2, must receive a PUBREC (publish receive),
+    // send a PUBREL (publish release), and receive a PUBCOMP (publish complete)
+    else if (qos == QOS2) {
+        // receive PUBREC
+        if ((recv_len = recv(broker->socket_fd, buf, sizeof(buf), 0)) < 0) {
+            if (VERBOSE)
+                fprintf(stderr, "Unable to receive from mqtt broker\n");
+            return -1;
+        }
+
+        recv_ctrl_packet = (buf[0] >> 4) & 0xf;
+        recv_remaining_len = buf[1];
+        if (recv_ctrl_packet != PUBREC || recv_remaining_len != 2) {
+            if (VERBOSE)
+                fprintf(stderr, "Received packet is invalid PUBREC\n");
+            return -1;
+        }
+
+        // send PUBREL
+        buf[0] = (PUBREL << 4) | (2); // PUBREL + reserved
+        buf[1] = 2; // MSB of length + LSB of lengh (length = 2)
+        buf[2] = get_msb(broker->msg_id);
+        buf[3] = get_lsb(broker->msg_id);
+
+        if (send(broker->socket_fd, buf, sizeof(buf), 0) < 0) {
+            if (VERBOSE)
+                fprintf(stderr, "Unable to send mqtt PUBREL message to broker\n");
+            return -1;
+        }
+
+        // receive PUBCOMP
+        if ((recv_len = recv(broker->socket_fd, buf, sizeof(buf), 0)) < 0) {
+            if (VERBOSE)
+                fprintf(stderr, "Unable to receive from mqtt broker\n");
+            return -1;
+        }
+
+        recv_ctrl_packet = (buf[0] >> 4) & 0xf;
+        recv_remaining_len = buf[1];
+        if (recv_ctrl_packet != PUBCOMP || recv_remaining_len != 2) {
+            if (VERBOSE)
+                fprintf(stderr, "Received packet is invalid PUBCOMP\n");
             return -1;
         }
     }
@@ -272,6 +312,16 @@ int mqtt_pub(mqtt_broker *broker,
     return 0;
 }
 
+/*
+ * Subscribes to a topic on a broker
+ */
+int mqtt_sub(mqtt_broker *broker, const char *topic, mqtt_qos_t qos) {
+    return 0;
+}
+
+/*
+ * Disconnects broker
+ */
 int mqtt_disconnect(mqtt_broker *broker) {
     if (!broker->connected) {
         return 0;
