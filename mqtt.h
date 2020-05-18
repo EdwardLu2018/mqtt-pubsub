@@ -29,11 +29,12 @@ typedef struct {
     char connected;
     int socket_fd;
     int port;
+    int msg_id;
     struct sockaddr_in addr;
     socklen_t addrlen;
     char broker_ip[BROKERIP_LEN];
     char client_id[CLIENTID_LEN];
-} mqtt_broker_info;
+} mqtt_broker;
 
 /* Control packet */
 typedef enum {
@@ -57,13 +58,13 @@ typedef enum {
 /* Quality of service */
 typedef enum { QOS0, QOS1, QOS2 } mqtt_qos_t;
 
-int mqtt_connect(mqtt_broker_info *broker,
-                 const char *broker_ip, const char *client_id,
-                 uint16_t port, uint8_t connect_flags, uint16_t keep_alive);
-int mqtt_pub(mqtt_broker_info *broker,
+mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
+                               uint16_t port, uint8_t connect_flags,
+                               uint16_t keep_alive);
+int mqtt_pub(mqtt_broker *broker,
              const char *topic, const char *msg,
              bool retain, bool dup, mqtt_qos_t qos);
-int mqtt_sub(mqtt_broker_info *broker, const char *topic);
-int mqtt_disconnect(mqtt_broker_info *broker);
+int mqtt_sub(mqtt_broker *broker, const char *topic);
+int mqtt_disconnect(mqtt_broker *broker);
 
 #endif // MQTT_H
