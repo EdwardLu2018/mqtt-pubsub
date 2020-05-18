@@ -180,6 +180,7 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
     }
 
     broker->connected = true;
+
     return broker;
 }
 
@@ -189,7 +190,8 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
 int mqtt_pub(mqtt_broker *broker,
              const char *topic, const char *msg,
              bool retain, bool dup, mqtt_qos_t qos) {
-    uint16_t topic_len, msg_len, var_header_len, remaining_len;
+    uint16_t topic_len, msg_len, var_header_len, remaining_len,
+             pub_msg_len, recv_len;
 
     if (!broker->connected) {
         return -1;
@@ -224,16 +226,50 @@ int mqtt_pub(mqtt_broker *broker,
      */
 
     // add fixed header
-    char mqtt_pub_msg[2 + remaining_len];
+    pub_msg_len = 2 + remaining_len;
+    char mqtt_pub_msg[pub_msg_len];
     // MQTT control packet type | DUP | QoS | RETAIN
     mqtt_pub_msg[0] = (PUBLISH << 4) | (dup << 3) | (qos << 1) | (retain);
     mqtt_pub_msg[1] = remaining_len;
+    // add variable header
     memcpy(&mqtt_pub_msg[2], var_header, var_header_len);
+    // add payload
     memcpy(&mqtt_pub_msg[2] + var_header_len, msg, msg_len);
 
-    printf("%s\n", mqtt_pub_msg);
+    /*
+     * Send to broker
+     */
+    if (send(broker->socket_fd, mqtt_pub_msg, pub_msg_len, 0) < 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Unable to send mqtt publish message to broker\n");
+        return -1;
+    }
 
-    return 1;
+    int i = 0;
+    while(i < pub_msg_len) {
+        fprintf(stderr, "%c\n", mqtt_pub_msg[i]);
+        ++i;
+    }
+
+    // A PUBACK Packet is the response to a PUBLISH Packet with QoS level 1
+    if (qos == QOS1) {
+        char recv_buf[4];
+        if ((recv_len = recv(broker->socket_fd, recv_buf, sizeof(recv_buf), 0)) < 0) {
+            if (VERBOSE)
+                fprintf(stderr, "Unable to receive from mqtt broker\n");
+            return -1;
+        }
+
+        char recv_ctrl_packet = (recv_buf[0] >> 4) & 0xf;
+        char recv_remaining_len = recv_buf[1];
+        if (recv_ctrl_packet != PUBACK || recv_remaining_len != 2) {
+            if (VERBOSE)
+                fprintf(stderr, "Received packet is invalid\n");
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 int mqtt_disconnect(mqtt_broker *broker) {
