@@ -71,7 +71,7 @@ int mqtt_connect(mqtt_broker_info *broker,
     /*
      * Save broker information
      */
-    broker->connected = 0;
+    broker->connected = false;
     broker->port = port;
     strncpy(broker->broker_ip, broker_ip, BROKERIP_LEN);
     strncpy(broker->client_id, client_id, CLIENTID_LEN);
@@ -174,6 +174,51 @@ int mqtt_connect(mqtt_broker_info *broker,
         free(broker);
         return -1;
     }
+
+    broker->connected = true;
+
+    return 0;
+}
+
+/*
+ * Publishes a message to broker
+ */
+int mqtt_pub(mqtt_broker_info *broker,
+             const char *topic, const char *msg,
+             bool retain, bool dup, mqtt_qos_t qos) {
+    if (!broker->connected) {
+        return -1;
+    }
+
+
+}
+
+int mqtt_disconnect(mqtt_broker_info *broker) {
+    if (!broker->connected) {
+        return 0;
+    }
+
+    /*
+     * DISCONNECT + no payload
+     */
+    char len = 2;
+    char mqtt_disconnect_msg[len] =
+    {
+        DISCONNECT << 4,    // MQTT control packet type << 4
+        0                   // no remaining length
+    };
+
+    /*
+     * Send to broker
+     */
+    if (send(broker->socket_fd, mqtt_connect_msg, len, 0) < 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Unable to send mqtt connect message to broker\n");
+        free(broker);
+        return -1;
+    }
+
+    broker->connected = false;
 
     return 0;
 }

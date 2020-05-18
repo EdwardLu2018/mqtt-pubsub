@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <string.h>
 
@@ -14,6 +15,16 @@
 #define CLIENTID_LEN    24      // between 1 and 23 + null terminator
 #define MAXPACKET_LEN   8192
 
+/* Connect flags */
+#define RESERVED        0b0
+#define CLEAN_SESSION   0b10
+#define WILL_FLAG       0b100
+#define WILL_QOS        0b1000
+#define WILL_RETAIN     0b10000
+#define PASSWORD_FLAG   0b100000
+#define USERNAME_FLAG   0b1000000
+
+/* MQTT broker struct */
 typedef struct {
     char connected;
     int socket_fd;
@@ -24,15 +35,7 @@ typedef struct {
     char client_id[CLIENTID_LEN];
 } mqtt_broker_info;
 
-/* Connect flags */
-#define RESERVED        0b0
-#define CLEAN_SESSION   0b10
-#define WILL_FLAG       0b100
-#define WILL_QOS        0b1000
-#define WILL_RETAIN     0b10000
-#define PASSWORD_FLAG   0b100000
-#define USERNAME_FLAG   0b1000000
-
+/* Control packet */
 typedef enum {
     UNDEF,
     CONNECT,
@@ -51,10 +54,16 @@ typedef enum {
     DISCONNECT
 } control_packet_t;
 
+/* Quality of service */
+typedef enum { QOS0, QOS1, QOS2 } mqtt_qos_t;
+
 int mqtt_connect(mqtt_broker_info *broker,
                  const char *broker_ip, const char *client_id,
                  uint16_t port, uint8_t connect_flags, uint16_t keep_alive);
-int mqtt_pub(mqtt_broker_info *broker, const char *topic, const char *data);
+int mqtt_pub(mqtt_broker_info *broker,
+             const char *topic, const char *msg,
+             bool retain, bool dup, mqtt_qos_t qos);
 int mqtt_sub(mqtt_broker_info *broker, const char *topic);
+int mqtt_disconnect(mqtt_broker_info *broker);
 
 #endif // MQTT_H
