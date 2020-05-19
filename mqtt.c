@@ -233,7 +233,7 @@ int mqtt_pub(mqtt_broker *broker,
 
     if (broker == NULL || !broker->connected) {
         if (VERBOSE)
-            fprintf(stderr, "broker not set up\n");
+            fprintf(stderr, "Broker not set up\n");
         return -1;
     }
 
@@ -364,7 +364,7 @@ int mqtt_sub(mqtt_broker *broker, const char *topic, mqtt_qos_t qos) {
 
     if (broker == NULL || !broker->connected) {
         if (VERBOSE)
-            fprintf(stderr, "broker not set up\n");
+            fprintf(stderr, "Broker not set up\n");
         return -1;
     }
 
@@ -442,6 +442,90 @@ int mqtt_sub(mqtt_broker *broker, const char *topic, mqtt_qos_t qos) {
     else if (qos != return_code) {
         if (VERBOSE)
             fprintf(stderr, "Return code is invalid SUBACK\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+/*
+ * Unsubscribes to a topic on a broker
+ */
+int mqtt_unsub(mqtt_broker *broker, const char *topic) {
+    uint16_t topic_len, var_header_len, payload_len, remaining_len,
+             sub_msg_len, recv_len;
+
+    if (broker == NULL || !broker->connected) {
+        if (VERBOSE)
+            fprintf(stderr, "Broker not set up\n");
+        return -1;
+    }
+
+    topic_len = strlen(topic);
+
+    /*
+     * Setup variable header
+     */
+    // add 2 bytes for message id if QoS > 0
+    char var_header[] =
+    {
+        get_msb(broker->sub_id),    // packet identifer MSB
+        get_lsb(broker->sub_id)     // packet identifer LSB
+    };
+    var_header_len = 2;
+    remaining_len = var_header_len;
+
+    /*
+     * Setup payload
+     */
+    // length msb + lsb + topic length + QoS
+    payload_len = 2 + strlen(topic);
+    remaining_len += payload_len;
+
+    char payload[payload_len];
+    payload[0] = get_msb(topic_len);
+    payload[1] = get_lsb(topic_len);
+    memcpy(&payload[2], topic, topic_len);
+
+    /*
+     * Send MQTT subcribe message
+     */
+    // add fixed header
+    sub_msg_len = 2 + remaining_len;
+    char mqtt_sub_msg[sub_msg_len];
+    mqtt_sub_msg[0] = (uint8_t)(UNSUBSCRIBE << 4 | 2);
+    mqtt_sub_msg[1] = remaining_len;
+    // add variable header
+    memcpy(&mqtt_sub_msg[2], var_header, var_header_len);
+    // add payload
+    memcpy(&mqtt_sub_msg[2] + var_header_len, payload, payload_len);
+
+    /*
+     * Send to broker
+     */
+    if (send(broker->socket_fd, mqtt_sub_msg, sub_msg_len, 0) < 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Unable to send SUBSCRIBE message to broker\n");
+        return -1;
+    }
+
+    /*
+     * Check for correct UNSUBACK (unsubscribe acknowledge) packet
+     */
+    char recv_buf[4], recv_ctrl_packet, recv_remaining_len;
+
+    if ((recv_len = recv(broker->socket_fd, recv_buf,
+        sizeof(recv_buf), 0)) < 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Unable to receive from mqtt broker\n");
+        return -1;
+    }
+
+    recv_ctrl_packet = (uint8_t)(recv_buf[0] >> 4) & 0xf;
+    recv_remaining_len = recv_buf[1];
+    if (recv_ctrl_packet != UNSUBACK || recv_remaining_len != 2) {
+        if (VERBOSE)
+            fprintf(stderr, "Received packet is invalid UNSUBACK\n");
         return -1;
     }
 

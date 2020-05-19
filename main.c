@@ -37,7 +37,7 @@ int main(void) {
 
     fprintf(stderr, "Running sub test for topic tests/test1 [QOS0]:\n");
     if (mqtt_sub(broker, "tests/test1", QOS0) < 0) {
-        fprintf(stderr, "QOS0 subcribe failed\n");
+        fprintf(stderr, "QOS0 subscribe failed\n");
         return -1;
     }
 
@@ -53,7 +53,7 @@ int main(void) {
 
     fprintf(stderr, "Running sub test for topic tests/test2 [QOS1]:\n");
     if (mqtt_sub(broker, "tests/test2", QOS1) < 0) {
-        fprintf(stderr, "QOS0 subcribe failed\n");
+        fprintf(stderr, "QOS0 subscribe failed\n");
         return -1;
     }
 
@@ -69,7 +69,7 @@ int main(void) {
 
     fprintf(stderr, "Running sub test for topic tests/test3 [QOS2]:\n");
     if (mqtt_sub(broker, "tests/test3", QOS2) < 0) {
-        fprintf(stderr, "QOS0 subcribe failed\n");
+        fprintf(stderr, "QOS0 subscribe failed\n");
         return -1;
     }
 
@@ -81,6 +81,11 @@ int main(void) {
     for(size_t i = 0; i < mqtt_data->payload_len; ++i)
         fprintf(stderr, "%c", mqtt_data->payload[i]);
     fprintf(stderr, " (should be msg3)\n");
+
+    if (mqtt_unsub(broker, "tests/test1") < 0) {
+        fprintf(stderr, "test1 unsubscribe failed\n");
+        return -1;
+    }
 
     if (mqtt_disconnect(broker) < 0) {
         fprintf(stderr, "disconnect failed\n");
