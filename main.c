@@ -5,6 +5,8 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <assert.h>
+#include <string.h>
 
 #include "mqtt.h"
 
@@ -15,84 +17,51 @@ int main(void) {
 
     broker = mqtt_connect("127.0.0.1", "this_is_a_test", 1883,
                           CLEAN_SESSION, 60U);
-    if (broker == NULL) {
-        fprintf(stderr, "connect failed\n");
-        return -1;
-    }
+    assert(broker != NULL);
 
-    if (mqtt_pub(broker, "tests/test1", "msg1", true, false, QOS0) < 0) {
-        fprintf(stderr, "QOS0 publish failed\n");
-        return -1;
-    }
+    assert(mqtt_pub(broker, "tests/test1", "msg1", true, false, QOS0) >= 0);
 
-    if (mqtt_pub(broker, "tests/test2", "msg2", true, false, QOS1) < 0) {
-        fprintf(stderr, "QOS1 publish failed\n");
-        return -1;
-    }
+    assert(mqtt_pub(broker, "tests/test2", "msg2", true, false, QOS1) >= 0);
 
-    if (mqtt_pub(broker, "tests/test3", "msg3", true, false, QOS2) < 0) {
-        fprintf(stderr, "QOS2 publish failed\n");
-        return -1;
-    }
+    assert(mqtt_pub(broker, "tests/test3", "msg3", true, false, QOS2) >= 0);
 
-    fprintf(stderr, "Running sub test for topic tests/test1 [QOS0]:\n");
-    if (mqtt_sub(broker, "tests/test1", QOS0) < 0) {
-        fprintf(stderr, "QOS0 subscribe failed\n");
-        return -1;
-    }
+    assert(mqtt_sub(broker, "tests/test1", QOS0) >= 0);
 
     recv_len = mqtt_get_data(broker, mqtt_data);
-    fprintf(stderr, "QoS%d (should be QoS0)\n", mqtt_data->qos);
-    fprintf(stderr, "msg_id = %d (should be -1, since QoS == 0)\n",
-                    mqtt_data->msg_id);
-    fprintf(stderr, "topic = %s (should be tests/test1)\n", mqtt_data->topic);
-    fprintf(stderr, "payload = ");
-    for(size_t i = 0; i < mqtt_data->payload_len; ++i)
-        fprintf(stderr, "%c", mqtt_data->payload[i]);
-    fprintf(stderr, " (should be msg1)\n\n");
+    assert(recv_len >= 0);
+    assert(mqtt_data->qos == QOS0);
+    assert(mqtt_data->msg_id == -1);
+    assert(strcmp(mqtt_data->topic, "tests/test1") == 0);
+    assert(mqtt_data->payload_len == strlen("msg1"));
+    assert(strncmp(mqtt_data->payload, "msg1", strlen("msg1")) == 0);
 
-    fprintf(stderr, "Running sub test for topic tests/test2 [QOS1]:\n");
-    if (mqtt_sub(broker, "tests/test2", QOS1) < 0) {
-        fprintf(stderr, "QOS0 subscribe failed\n");
-        return -1;
-    }
+    assert(mqtt_ping(broker) >= 0);
+
+    assert(mqtt_sub(broker, "tests/test2", QOS1) >= 0);
 
     recv_len = mqtt_get_data(broker, mqtt_data);
-    fprintf(stderr, "QoS%d (should be QoS1)\n", mqtt_data->qos);
-    fprintf(stderr, "msg_id = %d (should be 1)\n", mqtt_data->msg_id);
-    fprintf(stderr, "topic = %s (should be tests/test2)\n", mqtt_data->topic);
-    fprintf(stderr, "payload = ");
-    for(size_t i = 0; i < mqtt_data->payload_len; ++i)
-        fprintf(stderr, "%c", mqtt_data->payload[i]);
-    fprintf(stderr, " (should be msg2)\n\n");
+    assert(recv_len >= 0);
+    assert(mqtt_data->qos == QOS1);
+    assert(mqtt_data->msg_id == 1);
+    assert(strcmp(mqtt_data->topic, "tests/test2") == 0);
+    assert(mqtt_data->payload_len == strlen("msg2"));
+    assert(strncmp(mqtt_data->payload, "msg2", strlen("msg2")) == 0);
 
-
-    fprintf(stderr, "Running sub test for topic tests/test3 [QOS2]:\n");
-    if (mqtt_sub(broker, "tests/test3", QOS2) < 0) {
-        fprintf(stderr, "QOS0 subscribe failed\n");
-        return -1;
-    }
+    assert(mqtt_sub(broker, "tests/test3", QOS2) >= 0);
 
     recv_len = mqtt_get_data(broker, mqtt_data);
-    fprintf(stderr, "QoS%d (should be QoS2)\n", mqtt_data->qos);
-    fprintf(stderr, "msg_id = %d (should be 2)\n", mqtt_data->msg_id);
-    fprintf(stderr, "topic = %s (should be tests/test3)\n", mqtt_data->topic);
-    fprintf(stderr, "payload = ");
-    for(size_t i = 0; i < mqtt_data->payload_len; ++i)
-        fprintf(stderr, "%c", mqtt_data->payload[i]);
-    fprintf(stderr, " (should be msg3)\n");
+    assert(recv_len >= 0);
+    assert(mqtt_data->qos == QOS2);
+    assert(mqtt_data->msg_id == 2);
+    assert(strcmp(mqtt_data->topic, "tests/test3") == 0);
+    assert(mqtt_data->payload_len == strlen("msg3"));
+    assert(strncmp(mqtt_data->payload, "msg3", strlen("msg3")) == 0);
 
-    if (mqtt_unsub(broker, "tests/test1") < 0) {
-        fprintf(stderr, "test1 unsubscribe failed\n");
-        return -1;
-    }
+    assert(mqtt_unsub(broker, "tests/test1") >= 0);
 
-    if (mqtt_disconnect(broker) < 0) {
-        fprintf(stderr, "disconnect failed\n");
-        return -1;
-    }
+    assert(mqtt_disconnect(broker) >= 0);
 
-    free_broker(broker);
+    assert(free_broker(broker) >= 0);
 
     return 0;
 }

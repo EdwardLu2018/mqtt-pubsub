@@ -505,7 +505,7 @@ int mqtt_unsub(mqtt_broker *broker, const char *topic) {
      */
     if (send(broker->socket_fd, mqtt_sub_msg, sub_msg_len, 0) < 0) {
         if (VERBOSE)
-            fprintf(stderr, "Unable to send SUBSCRIBE message to broker\n");
+            fprintf(stderr, "Unable to send UNSUBSCRIBE message to broker\n");
         return -1;
     }
 
@@ -526,6 +526,57 @@ int mqtt_unsub(mqtt_broker *broker, const char *topic) {
     if (recv_ctrl_packet != UNSUBACK || recv_remaining_len != 2) {
         if (VERBOSE)
             fprintf(stderr, "Received packet is invalid UNSUBACK\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+/*
+ * Ping the server, used in Keep Alive processing
+ */
+int mqtt_ping(mqtt_broker *broker) {
+    if (broker == NULL || !broker->connected) {
+        if (VERBOSE)
+            fprintf(stderr, "Broker not set up\n");
+        return -1;
+    }
+
+    /*
+     * Setup packet, which is just the fixed header
+     */
+    char mqtt_ping_msg[] =
+    {
+        (uint8_t)(PINGREQ << 4),
+        0
+    };
+
+    /*
+     * Send to broker
+     */
+    if (send(broker->socket_fd, mqtt_ping_msg, 2, 0) < 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Unable to send PINGREQ message to broker\n");
+        free(broker);
+        return -1;
+    }
+
+    /*
+     * Check for correct PINGRESP (ping response) packet
+     */
+    char recv_buf[2], recv_len, recv_ctrl_packet, recv_remaining_len;
+
+    if ((recv_len = recv(broker->socket_fd, recv_buf, 2, 0)) < 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Unable to receive from mqtt broker\n");
+        return -1;
+    }
+
+    recv_ctrl_packet = (uint8_t)(recv_buf[0] >> 4) & 0xf;
+    recv_remaining_len = recv_buf[1];
+    if (recv_ctrl_packet != PINGRESP || recv_remaining_len != 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Received packet is invalid PINGRESP\n");
         return -1;
     }
 
@@ -677,9 +728,11 @@ int mqtt_disconnect(mqtt_broker *broker) {
 /*
  * Frees memory taken by broker structure
  */
-void free_broker(mqtt_broker *broker) {
+int free_broker(mqtt_broker *broker) {
     if (broker != NULL) {
         close(broker->socket_fd);
         free(broker);
+        return 0;
     }
+    return -1;
 }
