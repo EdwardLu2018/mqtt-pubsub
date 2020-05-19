@@ -1,3 +1,8 @@
+/*
+ * MQTT publish and subscribe client.
+ * Written by Edward Lu
+ */
+
 #include "mqtt.h"
 
 #include <stdlib.h>
@@ -11,11 +16,18 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+/*
+ * Based on MQTT Version 3.1.1
+ * OASIS Standard
+ *
+ * http://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html
+ */
+
 #define VERBOSE 1
 
 #define MQTT_LEN    4       // MQTT
-#define MQTT_V311   0x04    // The value of the Protocol Level field for the
-                            // version 3.1.1 of the protocol is 4 (0x04)
+#define MQTT_V311   0x04    // The value of the protocol level field for
+                            // version 3.1.1 is 4 (0x04)
 
 /* Typedef for convenience */
 typedef struct sockaddr SA;
@@ -49,8 +61,8 @@ static int client_id_valid(const char *client_id) {
  * Connects and sets up mqtt broker with specified params
  */
 mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
-                               uint16_t port, uint8_t connect_flags,
-                               uint16_t keep_alive) {
+                          uint16_t port, uint8_t connect_flags,
+                          uint16_t keep_alive) {
     uint16_t client_id_len, remaining_len, var_header_len,
              payload_len, connect_msg_len, recv_len;
 

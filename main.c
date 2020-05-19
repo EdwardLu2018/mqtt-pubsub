@@ -1,3 +1,8 @@
+/*
+ * Tests for MQTT publish and subscribe client.
+ * Written by Edward Lu
+ */
+
 #include <stdio.h>
 #include <stdbool.h>
 
