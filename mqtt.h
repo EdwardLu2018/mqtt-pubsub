@@ -76,5 +76,6 @@ int mqtt_pub(mqtt_broker *broker,
 int mqtt_sub(mqtt_broker *broker, const char *topic, mqtt_qos_t qos);
 int mqtt_get_data(mqtt_broker *broker, mqtt_data_t *data);
 int mqtt_disconnect(mqtt_broker *broker);
+void free_broker(mqtt_broker *broker);
 
 #endif // MQTT_H

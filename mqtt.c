@@ -96,7 +96,8 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
     broker->addr.sin_port = htons(broker->port);
     broker->addrlen = sizeof(broker->addr);
 
-    if ((connect(broker->socket_fd, (SA *)&broker->addr, broker->addrlen)) < 0) {
+    if ((connect(broker->socket_fd, (SA *)&broker->addr,
+        broker->addrlen)) < 0) {
         if (VERBOSE)
             fprintf(stderr, "Unable to connect to broker\n");
         free(broker);
@@ -107,9 +108,10 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
      * Set socket recv timeout
      */
     struct timeval tv;
-    tv.tv_sec = 60; // 1 min timeout
+    tv.tv_sec = 30; // 30 sec timeout
     tv.tv_usec = 0;
-    setsockopt(broker->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(struct timeval));
+    setsockopt(broker->socket_fd, SOL_SOCKET, SO_RCVTIMEO,
+            (char *)&tv, sizeof(struct timeval));
 
     client_id_len = strlen(broker->client_id);
 
@@ -148,7 +150,7 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
     connect_msg_len = 2 + remaining_len;
     char mqtt_connect_msg[connect_msg_len];
     // send CONNECT since we are connecting
-    mqtt_connect_msg[0] = (uint8_t)(CONNECT << 4);  // MQTT control packet type << 4
+    mqtt_connect_msg[0] = (uint8_t)(CONNECT << 4);  // MQTT control packet type
     mqtt_connect_msg[1] = remaining_len;            // Remaining length of data
 
     // add variable header
@@ -171,7 +173,8 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
      * Check for correct CONNACK (connection acknowledge) packet
      */
     char recv_buf[4], recv_ctrl_packet, recv_remaining_len;
-    if ((recv_len = recv(broker->socket_fd, recv_buf, sizeof(recv_buf), 0)) < 0) {
+    if ((recv_len = recv(broker->socket_fd, recv_buf,
+        sizeof(recv_buf), 0)) < 0) {
         if (VERBOSE)
             fprintf(stderr, "Unable to receive from mqtt broker\n");
         free(broker);
@@ -183,6 +186,21 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
     if (recv_ctrl_packet != CONNACK || recv_remaining_len != 2) {
         if (VERBOSE)
             fprintf(stderr, "Received packet is invalid CONNACK\n");
+        free(broker);
+        return NULL;
+    }
+    // check CONNACK flags
+    else if (recv_buf[2] != 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Acknowledge flag is invalid CONNACK\n");
+        free(broker);
+        return NULL;
+    }
+    // check CONNACK return codes
+    // 0x00 is connection accepted
+    else if (recv_buf[3] != 0) {
+        if (VERBOSE)
+            fprintf(stderr, "Return code is invalid CONNACK\n");
         free(broker);
         return NULL;
     }
@@ -238,7 +256,8 @@ int mqtt_pub(mqtt_broker *broker,
     pub_msg_len = 2 + remaining_len;
     char mqtt_pub_msg[pub_msg_len];
     // MQTT control packet type | DUP | QoS | RETAIN
-    mqtt_pub_msg[0] = (uint8_t)(PUBLISH << 4) | (dup << 3) | (qos << 1) | (retain);
+    mqtt_pub_msg[0] = (uint8_t)(PUBLISH << 4) | (dup << 3) |
+                      (qos << 1) | (retain);
     mqtt_pub_msg[1] = remaining_len;
     // add variable header
     memcpy(&mqtt_pub_msg[2], var_header, var_header_len);
@@ -393,7 +412,8 @@ int mqtt_sub(mqtt_broker *broker, const char *topic, mqtt_qos_t qos) {
      */
     char recv_buf[5], recv_ctrl_packet, recv_remaining_len, return_code;
 
-    if ((recv_len = recv(broker->socket_fd, recv_buf, sizeof(recv_buf), 0)) < 0) {
+    if ((recv_len = recv(broker->socket_fd, recv_buf,
+        sizeof(recv_buf), 0)) < 0) {
         if (VERBOSE)
             fprintf(stderr, "Unable to receive from mqtt broker\n");
         return -1;
@@ -409,7 +429,7 @@ int mqtt_sub(mqtt_broker *broker, const char *topic, mqtt_qos_t qos) {
     }
     else if (qos != return_code) {
         if (VERBOSE)
-            fprintf(stderr, "Return code incorrect SUBACK\n");
+            fprintf(stderr, "Return code is invalid SUBACK\n");
         return -1;
     }
 
@@ -440,18 +460,18 @@ int mqtt_get_data(mqtt_broker *broker, mqtt_data_t *data) {
     /*
      * Parse buffer
      */
-
     // fixed header = Control packet|dup|Qos|retain + remaining length
     data->qos = (recv_buf[0] >> 1) & 0b11;
 
-    // variable header = topic length msb + lsb + topic + packet identifier msb + lsb
+    // variable header = topic length msb + lsb + topic + packet id msb + lsb
     data->topic_len = (int)(recv_buf[2] << 4) | (recv_buf[3]);
     memcpy(data->topic, &recv_buf[4], data->topic_len);
     data->topic[data->topic_len] = '\0';
-
     var_header_len = 2 + data->topic_len;
+
     if (data->qos != QOS0) { // QoS1 and Q0S2 have message id
-        data->msg_id = (int)(recv_buf[data->topic_len + 4] << 4) | recv_buf[data->topic_len + 5];
+        data->msg_id = (int)(recv_buf[data->topic_len + 4] << 4) |
+                             recv_buf[data->topic_len + 5];
         var_header_len += 2;
     }
     else {
@@ -459,8 +479,8 @@ int mqtt_get_data(mqtt_broker *broker, mqtt_data_t *data) {
     }
 
     // payload is the rest
-    // - length can be calculated by subtracting the length of the variable header
-    // from the remaining length field that is in the fixed header
+    // - length can be calculated by subtracting the length of the variable
+    // header from the remaining length field that is in the fixed header
     data->payload_len = remaining_len - var_header_len;
     memcpy(data->payload, &recv_buf[var_header_len + 2], data->payload_len);
 
@@ -556,4 +576,14 @@ int mqtt_disconnect(mqtt_broker *broker) {
     broker->connected = false;
 
     return 0;
+}
+
+/*
+ * Frees memory taken by broker structure
+ */
+void free_broker(mqtt_broker *broker) {
+    if (broker != NULL) {
+        close(broker->socket_fd);
+        free(broker);
+    }
 }
