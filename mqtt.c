@@ -25,8 +25,8 @@
 
 #define VERBOSE 1
 
-#define MQTT_LEN    4       // MQTT
-#define MQTT_V311   0x04    // The value of the protocol level field for
+#define MQTT_LEN    4       // len(MQTT)
+#define MQTT_V311   0x4     // The value of the protocol level field for
                             // version 3.1.1 is 4 (0x04)
 
 /* Typedef for convenience */
@@ -202,7 +202,7 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
         return NULL;
     }
     // check CONNACK flags
-    else if (recv_buf[2] != 0) {
+    else if ((recv_buf[2] & 1) != 0) { // Bit 0 session present flag
         if (VERBOSE)
             fprintf(stderr, "Acknowledge flag is invalid CONNACK\n");
         free(broker);
@@ -305,6 +305,11 @@ int mqtt_pub(mqtt_broker *broker,
                 fprintf(stderr, "Received packet is invalid PUBACK\n");
             return -1;
         }
+        else if (((uint8_t)(buf[2] << 4) | buf[3]) != broker->pub_id) {
+            if (VERBOSE)
+                fprintf(stderr, "Packet identifer doesn't match PUBACK\n");
+            return -1;
+        }
     }
     // For QoS level 2, must receive a PUBREC (publish receive),
     // send a PUBREL (publish release), and receive a PUBCOMP (publish complete)
@@ -321,6 +326,11 @@ int mqtt_pub(mqtt_broker *broker,
         if (recv_ctrl_packet != PUBREC || recv_remaining_len != 2) {
             if (VERBOSE)
                 fprintf(stderr, "Received packet is invalid PUBREC\n");
+            return -1;
+        }
+        else if (((uint8_t)(buf[2] << 4) | buf[3]) != broker->pub_id) {
+            if (VERBOSE)
+                fprintf(stderr, "Packet identifer doesn't match PUBREC\n");
             return -1;
         }
 
@@ -348,6 +358,11 @@ int mqtt_pub(mqtt_broker *broker,
         if (recv_ctrl_packet != PUBCOMP || recv_remaining_len != 2) {
             if (VERBOSE)
                 fprintf(stderr, "Received packet is invalid PUBCOMP\n");
+            return -1;
+        }
+        else if (((uint8_t)(buf[2] << 4) | buf[3]) != broker->pub_id) {
+            if (VERBOSE)
+                fprintf(stderr, "Packet identifer doesn't match PUBCOMP\n");
             return -1;
         }
     }
@@ -422,7 +437,7 @@ int mqtt_sub(mqtt_broker *broker, const char *topic, mqtt_qos_t qos) {
     /*
      * Check for correct SUBACK (subscribe acknowledge) packet
      */
-    char recv_buf[5], recv_ctrl_packet, recv_remaining_len, return_code;
+    char recv_buf[5], recv_ctrl_packet, recv_remaining_len;
 
     if ((recv_len = recv(broker->socket_fd, recv_buf,
         sizeof(recv_buf), 0)) < 0) {
@@ -433,13 +448,17 @@ int mqtt_sub(mqtt_broker *broker, const char *topic, mqtt_qos_t qos) {
 
     recv_ctrl_packet = (uint8_t)(recv_buf[0] >> 4) & 0xf;
     recv_remaining_len = recv_buf[1]; // should be 3 (recv_len=5 - header=2)
-    return_code = recv_buf[4];
     if (recv_ctrl_packet != SUBACK || recv_remaining_len != 3) {
         if (VERBOSE)
             fprintf(stderr, "Received packet is invalid SUBACK\n");
         return -1;
     }
-    else if (qos != return_code) {
+    else if (((uint8_t)(recv_buf[2] << 4) | recv_buf[3]) != broker->sub_id) {
+        if (VERBOSE)
+            fprintf(stderr, "Packet identifer doesn't match SUBACK\n");
+        return -1;
+    }
+    else if (qos != recv_buf[4]) {
         if (VERBOSE)
             fprintf(stderr, "Return code is invalid SUBACK\n");
         return -1;
@@ -526,6 +545,11 @@ int mqtt_unsub(mqtt_broker *broker, const char *topic) {
     if (recv_ctrl_packet != UNSUBACK || recv_remaining_len != 2) {
         if (VERBOSE)
             fprintf(stderr, "Received packet is invalid UNSUBACK\n");
+        return -1;
+    }
+    else if (((uint8_t)(recv_buf[2] << 4) | recv_buf[3]) > broker->sub_id) {
+        if (VERBOSE)
+            fprintf(stderr, "Packet identifer doesn't match UNSUBACK\n");
         return -1;
     }
 

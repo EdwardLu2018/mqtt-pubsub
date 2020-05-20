@@ -13,7 +13,7 @@
 
 #define BROKERIP_LEN    16      // ipv4 schema
 #define CLIENTID_LEN    24      // between 1 and 23 + null terminator
-#define MAXPACKET_LEN   1024
+#define MAXPACKET_LEN   255
 
 /* Connect flags */
 #define CLEAN_SESSION   0b10
@@ -24,11 +24,11 @@
 
 /* MQTT broker struct */
 typedef struct {
-    char connected;
+    bool connected;
     int socket_fd;
-    int port;
-    int pub_id;
-    int sub_id;
+    uint16_t port;
+    uint16_t pub_id;
+    uint16_t sub_id;
     struct sockaddr_in addr;
     socklen_t addrlen;
     char broker_ip[BROKERIP_LEN];
@@ -55,7 +55,7 @@ typedef enum {
 } control_packet_t;
 
 /* Quality of service */
-typedef enum { QOS0, QOS1, QOS2 } mqtt_qos_t;
+typedef enum { QOS0, QOS1, QOS2, FAILURE=0x80} mqtt_qos_t;
 
 /* MQTT data struct */
 typedef struct {
