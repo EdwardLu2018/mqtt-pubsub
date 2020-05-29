@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include <netdb.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -44,9 +45,9 @@ static char get_lsb(int byte) {
 /*
  * IPV4 Schema must be at most xxx.xxx.xxx.xxx + NULL (15 + 1)
  */
-static int broker_ip_valid(const char *broker_ip) {
-    return strlen(broker_ip) + 1 < BROKERIP_LEN;
-}
+// static int hostname_valid(const char *hostname) {
+//     return strlen(hostname) + 1 < BROKERIP_LEN;
+// }
 
 /*
  * The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded
@@ -60,9 +61,10 @@ static int client_id_valid(const char *client_id) {
 /*
  * Connects and sets up mqtt broker with specified params
  */
-mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
+mqtt_broker *mqtt_connect(const char *hostname, const char *client_id,
                           uint16_t port, uint8_t connect_flags,
                           uint16_t keep_alive) {
+    struct hostent *server;
     uint16_t client_id_len, remaining_len, var_header_len,
              payload_len, connect_msg_len, recv_len;
 
@@ -71,12 +73,12 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
     if (broker == NULL) {
         return NULL;
     }
-    else if (!broker_ip_valid(broker_ip)) {
-        if (VERBOSE)
-            fprintf(stderr, "Invalid broker_ip\n");
-        free(broker);
-        return NULL;
-    }
+    // else if (!hostname_valid(hostname)) {
+    //     if (VERBOSE)
+    //         fprintf(stderr, "Invalid hostname\n");
+    //     free(broker);
+    //     return NULL;
+    // }
     else if (!client_id_valid(client_id)) {
         if (VERBOSE)
             fprintf(stderr, "Invalid client_id\n");
@@ -91,7 +93,7 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
     broker->port = port;
     broker->pub_id = 0;
     broker->sub_id = 0;
-    strcpy(broker->broker_ip, broker_ip);
+    strcpy(broker->hostname, hostname);
     strcpy(broker->client_id, client_id);
     if ((broker->socket_fd = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
         if (VERBOSE)
@@ -101,10 +103,21 @@ mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
     }
 
     /*
+     * Get server by DNS
+     */
+    if ((server = gethostbyname(broker->hostname)) == NULL) {
+        if (VERBOSE)
+            fprintf(stderr, "Unable to connect to MQTT server\n");
+        free(broker);
+        return NULL;
+    }
+
+    /*
      * Setup and connect to socket
      */
+    memset((char *) &broker->addr, '\0', sizeof(broker->addr));
     broker->addr.sin_family = AF_INET;
-    broker->addr.sin_addr.s_addr = inet_addr(broker->broker_ip);
+    memcpy((char *)server->h_addr, (char *)&broker->addr.sin_addr.s_addr, server->h_length);
     broker->addr.sin_port = htons(broker->port);
     broker->addrlen = sizeof(broker->addr);
 

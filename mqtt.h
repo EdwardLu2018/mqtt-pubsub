@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#define BROKERIP_LEN    16      // ipv4 schema
+#define HOSTNAME_LEN    255
 #define CLIENTID_LEN    24      // between 1 and 23 + null terminator
 #define MAXPACKET_LEN   255
 
@@ -31,7 +31,7 @@ typedef struct {
     uint16_t sub_id;
     struct sockaddr_in addr;
     socklen_t addrlen;
-    char broker_ip[BROKERIP_LEN];
+    char hostname[HOSTNAME_LEN];
     char client_id[CLIENTID_LEN];
 } mqtt_broker;
 
