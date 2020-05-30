@@ -117,7 +117,7 @@ mqtt_broker *mqtt_connect(const char *hostname, const char *client_id,
      */
     memset((char *) &broker->addr, '\0', sizeof(broker->addr));
     broker->addr.sin_family = AF_INET;
-    memcpy((char *)server->h_addr, (char *)&broker->addr.sin_addr.s_addr, server->h_length);
+    broker->addr.sin_addr.s_addr = *(uint32_t *)(server->h_addr);
     broker->addr.sin_port = htons(broker->port);
     broker->addrlen = sizeof(broker->addr);
 

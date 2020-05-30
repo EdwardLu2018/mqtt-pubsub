@@ -15,8 +15,8 @@ int main(void) {
     int recv_len;
     mqtt_broker *broker;
 
-    broker = mqtt_connect("127.0.0.1", "this_is_a_test", 1883,
-                          CLEAN_SESSION, 60U);
+    broker = mqtt_connect("test.mosquitto.org", "this_is_a_test", 1883,
+                          CLEAN_SESSION, 60U); // 127.0.0.1
     assert(broker != NULL);
 
     assert(mqtt_pub(broker, "tests/test1", "msg1", true, false, QOS0) >= 0);
@@ -58,6 +58,8 @@ int main(void) {
 
     assert(mqtt_disconnect(broker) >= 0);
     assert(free_broker(broker) >= 0);
+
+    printf("All Tests Passed!\n");
 
     return 0;
 }
