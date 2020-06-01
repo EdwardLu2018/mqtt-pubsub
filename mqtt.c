@@ -43,13 +43,6 @@ static char get_lsb(int byte) {
 }
 
 /*
- * IPV4 Schema must be at most xxx.xxx.xxx.xxx + NULL (15 + 1)
- */
-// static int hostname_valid(const char *hostname) {
-//     return strlen(hostname) + 1 < BROKERIP_LEN;
-// }
-
-/*
  * The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded
  * bytes in length, and that contain only the characters
  * '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
@@ -59,26 +52,17 @@ static int client_id_valid(const char *client_id) {
 }
 
 /*
- * Connects and sets up mqtt broker with specified params
+ * Initializes mqtt broker with specified hostname and port
  */
-mqtt_broker *mqtt_connect(const char *hostname, const char *client_id,
-                          uint16_t port, uint8_t connect_flags,
-                          uint16_t keep_alive) {
+mqtt_broker *mqtt_init(const char *hostname, const char *client_id,
+                        uint16_t port) {
     struct hostent *server;
-    uint16_t client_id_len, remaining_len, var_header_len,
-             payload_len, connect_msg_len, recv_len;
 
     mqtt_broker *broker = (mqtt_broker *)malloc(sizeof(mqtt_broker));
 
     if (broker == NULL) {
         return NULL;
     }
-    // else if (!hostname_valid(hostname)) {
-    //     if (VERBOSE)
-    //         fprintf(stderr, "Invalid hostname\n");
-    //     free(broker);
-    //     return NULL;
-    // }
     else if (!client_id_valid(client_id)) {
         if (VERBOSE)
             fprintf(stderr, "Invalid client_id\n");
@@ -138,6 +122,21 @@ mqtt_broker *mqtt_connect(const char *hostname, const char *client_id,
     setsockopt(broker->socket_fd, SOL_SOCKET, SO_RCVTIMEO,
             (char *)&tv, sizeof(struct timeval));
 
+    return broker;
+}
+
+/*
+ * Connects to mqtt broker with specified params
+ */
+int mqtt_connect(mqtt_broker *broker, uint8_t connect_flags,
+                    uint8_t keep_alive) {
+    uint16_t client_id_len, remaining_len, var_header_len,
+             payload_len, connect_msg_len, recv_len;
+
+    if (broker->connected) {
+        return 0;
+    }
+
     client_id_len = strlen(broker->client_id);
 
     /*
@@ -191,7 +190,7 @@ mqtt_broker *mqtt_connect(const char *hostname, const char *client_id,
         if (VERBOSE)
             fprintf(stderr, "Unable to send CONNECT message to broker\n");
         free(broker);
-        return NULL;
+        return -1;
     }
 
     /*
@@ -203,7 +202,7 @@ mqtt_broker *mqtt_connect(const char *hostname, const char *client_id,
         if (VERBOSE)
             fprintf(stderr, "Unable to receive from mqtt broker\n");
         free(broker);
-        return NULL;
+        return -1;
     }
 
     recv_ctrl_packet = (uint8_t)(recv_buf[0] >> 4) & 0xf;
@@ -212,14 +211,14 @@ mqtt_broker *mqtt_connect(const char *hostname, const char *client_id,
         if (VERBOSE)
             fprintf(stderr, "Received packet is invalid CONNACK\n");
         free(broker);
-        return NULL;
+        return -1;
     }
     // check CONNACK flags
     else if ((recv_buf[2] & 1) != 0) { // Bit 0 session present flag
         if (VERBOSE)
             fprintf(stderr, "Acknowledge flag is invalid CONNACK\n");
         free(broker);
-        return NULL;
+        return -1;
     }
     // check CONNACK return codes
     // 0x00 is connection accepted
@@ -227,12 +226,12 @@ mqtt_broker *mqtt_connect(const char *hostname, const char *client_id,
         if (VERBOSE)
             fprintf(stderr, "Return code is invalid CONNACK\n");
         free(broker);
-        return NULL;
+        return -1;
     }
 
     broker->connected = true;
 
-    return broker;
+    return 0;
 }
 
 /*

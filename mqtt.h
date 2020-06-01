@@ -67,9 +67,10 @@ typedef struct {
     char payload[MAXPACKET_LEN];
 } mqtt_data_t;
 
-mqtt_broker *mqtt_connect(const char *broker_ip, const char *client_id,
-                               uint16_t port, uint8_t connect_flags,
-                               uint16_t keep_alive);
+mqtt_broker *mqtt_init(const char *broker_ip, const char *client_id,
+                        uint16_t port);
+int mqtt_connect(mqtt_broker *broker, uint8_t connect_flags,
+                    uint8_t keep_alive);
 int mqtt_pub(mqtt_broker *broker,
              const char *topic, const char *msg,
              bool retain, bool dup, mqtt_qos_t qos);
